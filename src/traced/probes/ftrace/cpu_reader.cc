@@ -947,6 +947,11 @@ bool CpuReader::ParseField(const Field& field,
     case kFtraceSymAddr64ToUint64:
       ReadSymbolAddr<uint64_t>(field_start, field_id, message, metadata);
       return true;
+    case kMacAddressToUint64: {
+      uint64_t value = 0;
+      memcpy(&value, reinterpret_cast<const void*>(start), 6);
+      return true;
+    }
     case kInvalidTranslationStrategy:
       break;
   }

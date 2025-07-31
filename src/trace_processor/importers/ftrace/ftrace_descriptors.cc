@@ -24,7 +24,7 @@ namespace perfetto {
 namespace trace_processor {
 namespace {
 
-std::array<FtraceMessageDescriptor, 591> descriptors{{
+std::array<FtraceMessageDescriptor, 592> descriptors{{
     {nullptr, 0, {}},
     {nullptr, 0, {}},
     {nullptr, 0, {}},
@@ -6543,6 +6543,21 @@ std::array<FtraceMessageDescriptor, 591> descriptors{{
         {
             {},
             {"esr", ProtoSchemaType::kUint64},
+        },
+    },
+    {
+        "cfg80211_scan_done",
+        8,
+        {
+            {},
+            {"n_channels", ProtoSchemaType::kUint32},
+            {"ie", ProtoSchemaType::kUint32},
+            {"wdev_id", ProtoSchemaType::kUint32},
+            {"wiphy_mac", ProtoSchemaType::kUint64},
+            {"no_cck", ProtoSchemaType::kUint32},
+            {"aborted", ProtoSchemaType::kUint32},
+            {"scan_start_tsf", ProtoSchemaType::kUint64},
+            {"tsf_bssid", ProtoSchemaType::kUint64},
         },
     },
 }};

@@ -24,6 +24,7 @@ import "protos/perfetto/trace/ftrace/android_fs.proto";
 import "protos/perfetto/trace/ftrace/bcl_exynos.proto";
 import "protos/perfetto/trace/ftrace/binder.proto";
 import "protos/perfetto/trace/ftrace/block.proto";
+import "protos/perfetto/trace/ftrace/cfg80211.proto";
 import "protos/perfetto/trace/ftrace/cgroup.proto";
 import "protos/perfetto/trace/ftrace/clk.proto";
 import "protos/perfetto/trace/ftrace/cma.proto";
@@ -740,5 +741,6 @@ message FtraceEvent {
     HypervisorIommuIdmapCompleteFtraceEvent hypervisor_iommu_idmap_complete =
         589;
     HypervisorVcpuIllegalTrapFtraceEvent hypervisor_vcpu_illegal_trap = 590;
+    Cfg80211ScanDoneFtraceEvent cfg80211_scan_done = 591;
   }
 }

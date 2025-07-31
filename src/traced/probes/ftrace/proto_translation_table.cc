@@ -237,6 +237,8 @@ ProtoSchemaType ToGenericProtoField(FtraceFieldType ftrace_type) {
     case kFtraceSymAddr32:
     case kFtraceSymAddr64:
       return ProtoSchemaType::kUint64;
+    case kFtraceMacAddress:
+      return ProtoSchemaType::kBytes;
     case kInvalidFtraceFieldType:
       PERFETTO_DFATAL("Unexpected ftrace field type");
       return ProtoSchemaType::kUnknown;
@@ -329,6 +331,19 @@ bool InferFtraceType(const std::string& type_and_name,
     return true;
   }
 
+  
+
+  if (type_and_name == "__u8 daddr[4]") {
+    PERFETTO_ELOG("tutajjjjjjjjjjjjjjjjjjjjjjjjj");
+  }
+
+  if (Match(type_and_name.c_str(), R"(u8 [a-zA-Z_0-9]+\[6\])")) {
+    PERFETTO_ELOG("%s", type_and_name.c_str());
+    PERFETTO_ELOG("tutaj");
+    *out = kFtraceMacAddress;
+    return true;
+  }
+
   // Parsing of sys_enter argument field declared as
   //    field:unsigned long args[6];
   if (type_and_name == "unsigned long args[6]") {
@@ -410,27 +425,35 @@ bool InferFtraceType(const std::string& type_and_name,
   // Ints of various sizes:
   if (size == 1 && is_signed) {
     *out = kFtraceInt8;
+    PERFETTO_DLOG("kFtraceInt8");
     return true;
   } else if (size == 1 && !is_signed) {
     *out = kFtraceUint8;
+    PERFETTO_DLOG("kFtraceInt8");
     return true;
   } else if (size == 2 && is_signed) {
     *out = kFtraceInt16;
+    PERFETTO_DLOG("kFtraceInt16");
     return true;
   } else if (size == 2 && !is_signed) {
     *out = kFtraceUint16;
+    PERFETTO_DLOG("kFtraceInt16");
     return true;
   } else if (size == 4 && is_signed) {
     *out = kFtraceInt32;
+    PERFETTO_DLOG("kFtraceInt32");
     return true;
   } else if (size == 4 && !is_signed) {
     *out = kFtraceUint32;
+    PERFETTO_DLOG("kFtraceInt32");
     return true;
   } else if (size == 8 && is_signed) {
     *out = kFtraceInt64;
+    PERFETTO_DLOG("kFtraceInt64");
     return true;
   } else if (size == 8 && !is_signed) {
     *out = kFtraceUint64;
+    PERFETTO_DLOG("kFtraceInt64");
     return true;
   }
 

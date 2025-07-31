@@ -584,3 +584,4 @@ hypervisor/host_mem_abort
 hypervisor/hyp_enter
 hypervisor/iommu_idmap_complete
 hypervisor/vcpu_illegal_trap
+cfg80211/cfg80211_scan_done
