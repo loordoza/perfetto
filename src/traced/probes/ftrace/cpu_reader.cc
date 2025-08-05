@@ -950,6 +950,7 @@ bool CpuReader::ParseField(const Field& field,
     case kMacAddressToUint64: {
       uint64_t value = 0;
       memcpy(&value, reinterpret_cast<const void*>(start), 6);
+      message->AppendVarInt(field_id, value);
       return true;
     }
     case kInvalidTranslationStrategy:
