@@ -24,7 +24,7 @@ namespace perfetto {
 namespace trace_processor {
 namespace {
 
-std::array<FtraceMessageDescriptor, 592> descriptors{{
+std::array<FtraceMessageDescriptor, 593> descriptors{{
     {nullptr, 0, {}},
     {nullptr, 0, {}},
     {nullptr, 0, {}},
@@ -6558,6 +6558,18 @@ std::array<FtraceMessageDescriptor, 592> descriptors{{
             {"aborted", ProtoSchemaType::kUint32},
             {"scan_start_tsf", ProtoSchemaType::kUint64},
             {"tsf_bssid", ProtoSchemaType::kUint64},
+        },
+    },
+    {
+        "drv_hw_scan",
+        5,
+        {
+            {},
+            {"wiphy_name", ProtoSchemaType::kString},
+            {"vif_type", ProtoSchemaType::kUint32},
+            {"sdata", ProtoSchemaType::kUint64},
+            {"p2p", ProtoSchemaType::kUint32},
+            {"vif_name", ProtoSchemaType::kString},
         },
     },
 }};

@@ -10466,6 +10466,18 @@ message LwisTracingMarkWriteFtraceEvent {
 
 // End of protos/perfetto/trace/ftrace/lwis.proto
 
+// Begin of protos/perfetto/trace/ftrace/mac80211.proto
+
+message DrvHwScanFtraceEvent {
+  optional string wiphy_name = 1;
+  optional uint32 vif_type = 2;
+  optional uint64 sdata = 3;
+  optional uint32 p2p = 4;
+  optional string vif_name = 5;
+}
+
+// End of protos/perfetto/trace/ftrace/mac80211.proto
+
 // Begin of protos/perfetto/trace/ftrace/mali.proto
 
 message MaliTracingMarkWriteFtraceEvent {
@@ -12455,6 +12467,7 @@ message FtraceEvent {
         589;
     HypervisorVcpuIllegalTrapFtraceEvent hypervisor_vcpu_illegal_trap = 590;
     Cfg80211ScanDoneFtraceEvent cfg80211_scan_done = 591;
+    DrvHwScanFtraceEvent drv_hw_scan = 592;
   }
 }
 
