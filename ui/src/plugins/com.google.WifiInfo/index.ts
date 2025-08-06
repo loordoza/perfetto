@@ -29,30 +29,49 @@ export default class implements PerfettoPlugin {
     });
     ctx.workspace.addChildInOrder(group);
 
-    await this.addSliceTrack(
-        ctx,
-        group,
-        'Scan Events',
-        `
-        SELECT
-            s.ts,
-            s.dur,
-            'Scan' AS name,
-            EXTRACT_ARG(s.arg_set_id, 'n_channels') AS n_channels,
-            EXTRACT_ARG(s.arg_set_id, 'wdev_id') AS wdev_id,
-            EXTRACT_ARG(s.arg_set_id, 'wiphy_mac') AS wiphy_mac,
-            EXTRACT_ARG(s.arg_set_id, 'no_cck') AS no_cck,
-            EXTRACT_ARG(s.arg_set_id, 'aborted') AS aborted,
-            EXTRACT_ARG(s.arg_set_id, 'scan_start_tsf') AS scan_start_tsf,
-            EXTRACT_ARG(s.arg_set_id, 'tsf_bssid') AS tsf_bssid
-        FROM slice s
-        WHERE s.name = 'cfg80211_scan_done'
-        `
-    );
+    await this.addScanEventsTrack(ctx, group);
   }
 
-  async addSliceTrack(ctx: Trace, parent: TrackNode, name: string, sqlQuery: string) {
+  async addScanEventsTrack(ctx: Trace, parent: TrackNode) {
     const uri = `/wifi_${uuidv4()}`;
+    const sqlQuery = `
+      WITH
+        drv_hw_scan_events AS (
+          SELECT
+            ts,
+            EXTRACT_ARG(arg_set_id, 'wiphy_name') as wiphy_name,
+            EXTRACT_ARG(arg_set_id, 'vif_name') as vif_name,
+            EXTRACT_ARG(arg_set_id, 'sdata') as sdata
+          FROM ftrace_event
+          WHERE name = 'drv_hw_scan'
+        ),
+        cfg80211_scan_done_events AS (
+          SELECT
+            ts,
+            EXTRACT_ARG(arg_set_id, 'wiphy_mac') as wiphy_mac,
+            EXTRACT_ARG(arg_set_id, 'aborted') as aborted
+          FROM ftrace_event
+          WHERE name = 'cfg80211_scan_done'
+        )
+      SELECT
+        T1.ts,
+        T2.ts - T1.ts AS dur,
+        'WiFi Scan' AS name,
+        T1.wiphy_name,
+        T1.vif_name,
+        T1.sdata,
+        T2.wiphy_mac,
+        T2.aborted
+      FROM drv_hw_scan_events AS T1
+      JOIN cfg80211_scan_done_events AS T2
+      ON T1.ts < T2.ts
+      AND T1.ts = (
+        SELECT MAX(ts) FROM drv_hw_scan_events
+        WHERE wiphy_name = T1.wiphy_name AND ts < T2.ts
+      )
+      ORDER BY T1.ts
+    `;
+
     const track = await createQuerySliceTrack({
       trace: ctx,
       uri,
@@ -62,27 +81,24 @@ export default class implements PerfettoPlugin {
           'ts',
           'dur',
           'name',
-          'n_channels',
-          'wdev_id',
+          'wiphy_name',
+          'vif_name',
+          'sdata',
           'wiphy_mac',
-          'no_cck',
           'aborted',
-          'scan_start_tsf',
-          'tsf_bssid',
         ],
       },
       argColumns: [
-          'n_channels',
-          'wdev_id',
+          'wiphy_name',
+          'vif_name',
+          'sdata',
           'wiphy_mac',
-          'no_cck',
           'aborted',
-          'scan_start_tsf',
-          'tsf_bssid',
       ],
+      trackIdColumn: 'wiphy_name',
     });
     ctx.tracks.registerTrack({uri, renderer: track});
-    const trackNode = new TrackNode({uri, name});
+    const trackNode = new TrackNode({uri, name: 'Scan Events'});
     parent.addChildInOrder(trackNode);
   }
 }
