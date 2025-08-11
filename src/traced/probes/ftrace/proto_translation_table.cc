@@ -330,8 +330,8 @@ bool InferFtraceType(const std::string& type_and_name,
     return true;
   }
 
+  // Parsing mac addresses like u8 addr[6]
   if (Match(type_and_name.c_str(), R"(u8 [a-zA-Z_0-9]+\[6\])")) {
-    PERFETTO_ELOG("%s", type_and_name.c_str());
     *out = kFtraceMacAddress;
     return true;
   }
