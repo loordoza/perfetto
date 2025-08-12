@@ -32,11 +32,10 @@ function wifiNetworkTracing(): RecordProbe {
     image: 'rec_wifi.png',
     title: 'Wi-Fi ftrace events',
     supportedPlatforms: ['LINUX', 'CHROME_OS'],
-    description: 'Enables tracing of crucial kernel events related to Wi-Fi operation',
+    description:
+      'Enables tracing of crucial kernel events related to Wi-Fi operation',
     genConfig: function (tc: TraceConfigBuilder) {
-      tc.addFtraceEvents(
-        'cfg80211/cfg80211_scan_done',
-      );
+      tc.addFtraceEvents('cfg80211/cfg80211_scan_done');
     },
   };
 }

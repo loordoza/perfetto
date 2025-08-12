@@ -103,13 +103,7 @@ export default class implements PerfettoPlugin {
           'aborted',
         ],
       },
-      argColumns: [
-        'wiphy_name',
-        'vif_name',
-        'sdata',
-        'wiphy_mac',
-        'aborted',
-      ],
+      argColumns: ['wiphy_name', 'vif_name', 'sdata', 'wiphy_mac', 'aborted'],
     });
     ctx.tracks.registerTrack({uri, renderer: track});
     const trackNode = new TrackNode({uri, name: 'Scan Events'});
