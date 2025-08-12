@@ -43,8 +43,53 @@ export default class implements PerfettoPlugin {
     });
     ctx.workspace.addChildInOrder(group);
 
+    await this.addWifiEventsTrack(ctx, group);
     await this.addScanEventsTrack(ctx, group);
     await this.addRssiSliceTrack(ctx, group);
+  }
+
+  async addWifiEventsTrack(ctx: Trace, parent: TrackNode) {
+    const uri = `/wifi_all_events_${uuidv4()}`;
+    const sqlQuery = `
+      SELECT
+        ftrace_event.ts AS ts,
+        0 AS dur,
+        ftrace_event.name AS name,
+        ftrace_event.utid AS utid,
+        (
+          SELECT json_group_array(
+            json_object(
+              key, 
+              COALESCE(string_value, CAST(int_value AS TEXT), CAST(real_value AS TEXT))
+            )
+          ) FROM args WHERE args.arg_set_id = ftrace_event.arg_set_id
+        ) AS args
+      FROM ftrace_event
+      WHERE 
+        ftrace_event.name LIKE 'cfg80211_%' OR
+        ftrace_event.name LIKE 'mac80211_%' OR
+        ftrace_event.name LIKE 'rdev_%' OR
+        ftrace_event.name LIKE 'drv_%' OR
+        ftrace_event.name LIKE 'api_%' OR
+        ftrace_event.name = 'skb_drop' OR
+        ftrace_event.name = 'stop_queue' OR
+        ftrace_event.name = 'wake_queue'
+      ORDER BY ftrace_event.ts
+    `;
+
+    const track = await createQuerySliceTrack({
+      trace: ctx,
+      uri,
+      data: {
+        sqlSource: sqlQuery,
+        columns: ['ts', 'dur', 'name', 'utid', 'args'],
+      },
+      argColumns: ['args'],
+    });
+
+    ctx.tracks.registerTrack({uri, renderer: track});
+    const trackNode = new TrackNode({uri, name: 'All WiFi Events'});
+    parent.addChildInOrder(trackNode);
   }
 
   async addScanEventsTrack(ctx: Trace, parent: TrackNode) {
