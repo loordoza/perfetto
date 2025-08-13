@@ -27,7 +27,7 @@ type RssiDataRow = {
   id: number;
   ts: bigint;
   dur: bigint;
-  bssid: bigint;
+  bssid_mac: string;
   signal_dbm: number;
   name: string;
 };
@@ -158,40 +158,116 @@ export default class implements PerfettoPlugin {
   async addRssiSliceTrack(ctx: Trace, parent: TrackNode) {
     const name = 'Wi-Fi RSSI (dBm)';
     const uri = `/wifi_rssi_${uuidv4()}`;
-
     const sqlQuery = `
-        WITH
-          rssi_with_next_ts AS (
-            SELECT
-              ts,
-              EXTRACT_ARG(arg_set_id, 'parent_bssid') AS bssid,
-              CAST(EXTRACT_ARG(arg_set_id, 'signal') / 100 AS INTEGER) AS signal_dbm,
-              LEAD(ts, 1, (SELECT max(ts) FROM ftrace_event)) OVER (PARTITION BY EXTRACT_ARG(arg_set_id, 'parent_bssid') ORDER BY ts) AS next_ts
-            FROM ftrace_event
-            WHERE name = 'cfg80211_inform_bss_frame'
-          )
+      WITH
+      rssi_events AS (
         SELECT
-          ROW_NUMBER() OVER (ORDER BY ts) AS id,
           ts,
-          (next_ts - ts) AS dur,
-          bssid,
-          signal_dbm,
-          printf(
-            '%02X:%02X:%02X:%02X:%02X:%02X, %d dBm',
-            (bssid >> 40) & 0xFF,
-            (bssid >> 32) & 0xFF,
-            (bssid >> 24) & 0xFF,
-            (bssid >> 16) & 0xFF,
-            (bssid >> 8) & 0xFF,
-            bssid & 0xFF,
-            signal_dbm
-          ) AS name
+          EXTRACT_ARG(arg_set_id, 'parent_bssid') AS bssid,
+          CAST(EXTRACT_ARG(arg_set_id, 'signal') / 100 AS INTEGER) AS signal_dbm
+        FROM ftrace_event
+        WHERE name = 'cfg80211_inform_bss_frame'
+      ),
+      scan_start_events AS (
+        SELECT
+          ts AS scan_start_ts
+        FROM ftrace_event
+        WHERE name = 'rdev_scan'
+      ),
+      scan_done_events AS (
+        SELECT
+          ts AS scan_done_ts
+        FROM ftrace_event
+        WHERE name = 'cfg80211_scan_done'
+      ),
+      last_scan_state AS (
+        SELECT
+          ts,
+          CASE
+            WHEN EXISTS (
+              SELECT 1
+              FROM scan_start_events
+              WHERE scan_start_ts < ts
+            ) AND (
+              SELECT MAX(scan_start_ts)
+              FROM scan_start_events
+              WHERE scan_start_ts < ts
+            ) > COALESCE(
+              (SELECT MAX(scan_done_ts) FROM scan_done_events WHERE scan_done_ts < ts), 0
+            )
+            THEN 'true'
+            ELSE 'false'
+          END AS is_scanning
+        FROM rssi_events
+      ),
+      rssi_with_dur AS (
+        SELECT
+          T1.ts,
+          T1.bssid,
+          T1.signal_dbm,
+          T4.is_scanning,
+          CASE T4.is_scanning
+            WHEN 'true' THEN
+              COALESCE(
+                (
+                  SELECT MIN(T5.ts)
+                  FROM rssi_events T5
+                  WHERE T5.ts > T1.ts AND T5.bssid = T1.bssid
+                ),
+                (
+                  SELECT MIN(T6.scan_done_ts)
+                  FROM scan_done_events T6
+                  WHERE T6.scan_done_ts > (SELECT MIN(T7.scan_done_ts) FROM scan_done_events T7 WHERE T7.scan_done_ts > T1.ts)
+                )
+              ) - T1.ts
+            ELSE
+              COALESCE(
+                (
+                  SELECT MIN(T8.ts)
+                  FROM rssi_events T8
+                  WHERE T8.ts > T1.ts AND T8.bssid = T1.bssid
+                ),
+                (
+                  SELECT MIN(T9.scan_done_ts)
+                  FROM scan_done_events T9
+                  WHERE T9.scan_done_ts > T1.ts
+                )
+              ) - T1.ts
+          END AS dur
         FROM
-          rssi_with_next_ts
-        WHERE
-          (next_ts - ts) > 0
-        ORDER BY ts
-      `;
+          rssi_events T1
+        LEFT JOIN
+          last_scan_state T4 ON T1.ts = T4.ts
+      )
+      SELECT
+        ROW_NUMBER() OVER (ORDER BY T1.ts) AS id,
+        T1.ts,
+        T1.dur,
+        T1.signal_dbm,
+        printf(
+          '%02X:%02X:%02X:%02X:%02X:%02X',
+          (T1.bssid >> 40) & 0xFF,
+          (T1.bssid >> 32) & 0xFF,
+          (T1.bssid >> 24) & 0xFF,
+          (T1.bssid >> 16) & 0xFF,
+          (T1.bssid >> 8) & 0xFF,
+          T1.bssid & 0xFF
+        ) AS bssid_mac,
+        printf(
+          '%02X:%02X:%02X:%02X:%02X:%02X, %d dBm',
+          (T1.bssid >> 40) & 0xFF,
+          (T1.bssid >> 32) & 0xFF,
+          (T1.bssid >> 24) & 0xFF,
+          (T1.bssid >> 16) & 0xFF,
+          (T1.bssid >> 8) & 0xFF,
+          T1.bssid & 0xFF,
+          T1.signal_dbm
+        ) AS name
+      FROM
+        rssi_with_dur T1
+      ORDER BY
+        T1.ts
+    `;
 
     ctx.tracks.registerTrack({
       uri,
@@ -204,14 +280,15 @@ export default class implements PerfettoPlugin {
             id: NUM,
             ts: LONG,
             dur: LONG,
-            bssid: LONG,
             signal_dbm: NUM,
+            bssid_mac: STR,
             name: STR,
           },
         }),
         colorizer: (row) => {
           const signalDbm = (row as RssiDataRow).signal_dbm;
-          if (signalDbm >= -19) {
+
+          if (signalDbm >= -20) {
             return makeColorScheme(new HSLColor({h: 120, s: 70, l: 40}));
           } else if (signalDbm >= -70) {
             return makeColorScheme(new HSLColor({h: 60, s: 70, l: 50}));
@@ -220,7 +297,7 @@ export default class implements PerfettoPlugin {
           }
         },
         tooltip: (slice) => `
-          RSSI:${(slice.row as RssiDataRow).signal_dbm} dBm
+          RSSI: ${(slice.row as RssiDataRow).signal_dbm} dBm
         `,
       }),
     });
