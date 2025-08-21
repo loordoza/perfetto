@@ -14,6 +14,7 @@
 
 import {RecordProbe, RecordSubpage} from '../config/config_interfaces';
 import {TraceConfigBuilder} from '../config/trace_config_builder';
+import {Toggle} from './widgets/toggle';
 
 export function networkRecordSection(): RecordSubpage {
   return {
@@ -27,6 +28,30 @@ export function networkRecordSection(): RecordSubpage {
 }
 
 function wifiNetworkTracing(): RecordProbe {
+  const cfgMacEvents = [
+    'cfg80211/*',
+    'mac80211/*',
+  ];
+  const netEvents = [
+    'net/netif_receive_skb',
+    'net/net_dev_xmit',
+    'net/napi_gro_receive_entry',
+    'net/napi_gro_receive_exit',
+  ];
+  const settings = {
+    cfg_mac: new Toggle({
+      title: 'Core events',
+      cssClass: '.thin',
+      default: true,
+      descr: 'Includes configuration (cfg80211) and low-level MAC events (mac80211).',
+    }),
+    net: new Toggle({
+      title: 'Packet traffic',
+      cssClass: '.thin',
+      default: false,
+      descr: 'Traces packet handling within the kernel, including transmit and receive events.',
+    }),
+  }
   return {
     id: 'wifi_network_tracing',
     image: 'rec_wifi.png',
@@ -34,8 +59,20 @@ function wifiNetworkTracing(): RecordProbe {
     supportedPlatforms: ['LINUX', 'CHROME_OS'],
     description:
       'Enables tracing of crucial kernel events related to Wi-Fi operation',
+    settings,
     genConfig: function (tc: TraceConfigBuilder) {
-      tc.addFtraceEvents('cfg80211/cfg80211_scan_done');
+      if (settings.cfg_mac.enabled) {
+        tc.addFtraceEvents(...cfgMacEvents);
+      }
+      if (settings.net.enabled) {
+        const bufId = 'ftrace_net';
+        const bufSizeKb = 1024;
+        tc.addBuffer(bufId, bufSizeKb);
+        const cfg = tc.addDataSource("linux.ftrace", bufId);
+        cfg.ftraceConfig ??= {};
+        cfg.ftraceConfig.ftraceEvents ??= [];
+        cfg.ftraceConfig.ftraceEvents.push(...netEvents);
+      }
     },
   };
 }
