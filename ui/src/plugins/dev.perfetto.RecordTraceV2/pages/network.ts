@@ -15,6 +15,9 @@
 import {RecordProbe, RecordSubpage} from '../config/config_interfaces';
 import {TraceConfigBuilder} from '../config/trace_config_builder';
 import {Toggle} from './widgets/toggle';
+import {Slider} from './widgets/slider';
+import {Textarea} from './widgets/textarea';
+import {splitLinesNonEmpty} from '../../../base/string_utils';
 
 export function networkRecordSection(): RecordSubpage {
   return {
@@ -28,30 +31,35 @@ export function networkRecordSection(): RecordSubpage {
 }
 
 function wifiNetworkTracing(): RecordProbe {
-  const cfgMacEvents = [
-    'cfg80211/*',
-    'mac80211/*',
-  ];
-  const netEvents = [
-    'net/netif_receive_skb',
-    'net/net_dev_xmit',
-    'net/napi_gro_receive_entry',
-    'net/napi_gro_receive_exit',
-  ];
+  const cfgMacEvents = ['cfg80211/*', 'mac80211/*'];
+  const netEvents = ['net/netif_receive_skb', 'net/net_dev_xmit'];
   const settings = {
     cfg_mac: new Toggle({
       title: 'Core events',
       cssClass: '.thin',
       default: true,
-      descr: 'Includes configuration (cfg80211) and low-level MAC events (mac80211).',
+      descr:
+        'Includes configuration (cfg80211) and low-level MAC events (mac80211).',
     }),
     net: new Toggle({
       title: 'Packet traffic',
       cssClass: '.thin',
       default: false,
-      descr: 'Traces packet handling within the kernel, including transmit and receive events.',
+      descr:
+        'Traces packet handling within the kernel, including transmit and receive events.',
     }),
-  }
+    bufSizeMb: new Slider({
+      title: 'Buffer size (MB) - 0 for default, >0 for a dedicated buffer',
+      cssClass: '.thin',
+      values: [0, 4, 8, 16, 32, 64, 128, 256, 512],
+      unit: 'MB',
+      zeroIsDefault: true,
+    }),
+    driverEventsText: new Textarea({
+      title: 'Names of events to track (e.g., family_name/event_name)',
+      placeholder: 'One per line',
+    }),
+  };
   return {
     id: 'wifi_network_tracing',
     image: 'rec_wifi.png',
@@ -65,14 +73,32 @@ function wifiNetworkTracing(): RecordProbe {
         tc.addFtraceEvents(...cfgMacEvents);
       }
       if (settings.net.enabled) {
-        const bufId = 'ftrace_net';
-        const bufSizeKb = 1024;
-        tc.addBuffer(bufId, bufSizeKb);
-        const cfg = tc.addDataSource("linux.ftrace", bufId);
-        cfg.ftraceConfig ??= {};
-        cfg.ftraceConfig.ftraceEvents ??= [];
-        cfg.ftraceConfig.ftraceEvents.push(...netEvents);
+        if (settings.bufSizeMb.value === 0) {
+          tc.addFtraceEvents(...netEvents);
+        } else {
+          const bufId = 'ftrace_net';
+          tc.addBuffer(bufId, settings.bufSizeMb.value * 1024);
+          const cfg = tc.addDataSource('linux.ftrace', bufId);
+          cfg.ftraceConfig ??= {};
+          cfg.ftraceConfig.ftraceEvents ??= [];
+          cfg.ftraceConfig.ftraceEvents.push(...netEvents);
+        }
+      } else {
+        settings.bufSizeMb.setValue(0);
+        settings.bufSizeMb.render();
+      }
+      if (settings.driverEventsText.text) {
+        const [driverEvents] = extractEvents(settings.driverEventsText.text);
+        tc.addFtraceEvents(...driverEvents);
       }
     },
   };
+}
+
+function extractEvents(text: string): [string[]] {
+  const events = [];
+  for (const line of splitLinesNonEmpty(text)) {
+    events.push(line);
+  }
+  return [events];
 }
